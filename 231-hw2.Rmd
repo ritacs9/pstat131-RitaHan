@@ -1,0 +1,110 @@
+---
+title: "231-hw2"
+author: "Rita Han"
+date: "2022-10-12"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+```
+
+```{r}
+abalone = read_csv(file= "/Users/ritahan/Desktop/pstat131/gauchospace/homework-2/data/abalone.csv")
+```
+
+```{r}
+#Q1
+abalone['age']=abalone$rings+1.5
+```
+
+```{r}
+abalone %>%
+  ggplot(aes(x=age))+geom_histogram()+labs(title='Distribution of Age')
+```
+  The plot shows a positively skewed normally distribution. The majority of abalone are between 9-13 years old. 
+
+```{r}
+#Q2
+set.seed(4500)
+abalone_split <- initial_split(abalone, prop = 0.80, strata = age) 
+abalone_train <- training(abalone_split)
+abalone_test <- testing(abalone_split)
+```
+
+Q3. We should not use rings to predict age, because age is calculated directly by rings.  
+```{r}
+#Q3
+update_abalone_train=abalone_train %>%
+  select(-rings)
+abalone_recipe <- recipe(age ~ . , data = update_abalone_train) %>%
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) %>%
+  step_interact(~ starts_with("type"):shucked_weight+
+                  longest_shell:diameter
+                +shucked_weight:shell_weight) %>%
+  step_normalize(all_predictors())
+abalone_recipe
+```
+
+```{r}
+#Q4
+lm_model=linear_reg() %>%
+  set_engine("lm")
+```
+
+```{r}
+#Q5
+lm_wflow= workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(abalone_recipe)
+```
+
+```{r}
+abalone_fit=fit(lm_wflow, update_abalone_train)
+abalone_fit %>%
+  extract_fit_parsnip() %>% 
+  tidy()
+```
+
+```{r}
+#Q6
+abalone_fit=fit(lm_wflow, update_abalone_train)
+tibble_abalone=data.frame(type = 'F', longest_shell = 0.50,
+                          diameter = 0.10, height = 0.30,
+                          whole_weight = 4,
+                          shucked_weight = 1, viscera_weight =
+                            2, shell_weight = 1)
+predict(abalone_fit, new_data=tibble_abalone)
+```
+The predicted age of a hypothetical female abalone is 22.  
+```{r}
+#Q7
+metrics=metric_set(rsq, rmse, mae)
+abalone_predict=predict(abalone_fit, update_abalone_train)
+abalone_predict_result=bind_cols(abalone_predict, update_abalone_train %>% select(age))
+abalone_predict_result
+```
+
+```{r}
+metrics(abalone_predict_result, truth = age,
+        estimate = .pred)
+```
+The rmse is 2.15, the mae is 1.54. The $R^2$ is 0.552, this means 55.2% of variable fit the model and can be explained by the predictors.  
+
+Question 8:  
+$Var(\epsilon)$ represent the irreducible error and $Var(\hat{f}(x_0))$ and $[Bias(\hat{f}(x_0))]^2$ represent the reproducible error.  
+Question 9:  
+$Var(\epsilon)$ is the minimum lower bound for the LHS, which is irreducible, so that $E\left[\left(y_0-\hat{f}\left(x_0\right)\right)^2\right]$ can not be less than $Var(\epsilon)$. In other words, the expected test error is always at least as large as the irreducible error.  
+Question 10:  
+
+![picture](/Users/ritahan/Desktop/pstat131/hw2Q10.png)
+
+
+
